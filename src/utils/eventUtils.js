@@ -1,0 +1,83 @@
+// Turn the huge raw Ticketmaster event into a small, flat object.
+export function normalizeEvent(e) {
+  const venue = e?._embedded?.venues?.[0];
+  const cls = e?.classifications?.[0];
+  const image =
+    e?.images?.find((i) => i.ratio === '16_9' && i.width >= 640) ?? e?.images?.[0];
+  const price = e?.priceRanges?.[0];
+
+  return {
+    id: e.id,
+    name: e.name,
+    url: e.url ?? null,
+    image: image?.url ?? null,
+    dateTime: e.dates?.start?.dateTime ?? null,
+    localDate: e.dates?.start?.localDate ?? null,
+    localTime: e.dates?.start?.localTime ?? null,
+    timezone: e.dates?.timezone ?? null,
+    status: e.dates?.status?.code ?? null,
+    venueName: venue?.name ?? null,
+    address: venue?.address?.line1 ?? null,
+    city: venue?.city?.name ?? null,
+    state: venue?.state?.name ?? null,
+    country: venue?.country?.name ?? null,
+    segment: cls?.segment?.name ?? null,
+    genre: cls?.genre?.name ?? null,
+    subGenre: cls?.subGenre?.name ?? null,
+    priceMin: price?.min ?? null,
+    priceMax: price?.max ?? null,
+    currency: price?.currency ?? null,
+    info: e.info ?? null,
+    pleaseNote: e.pleaseNote ?? null,
+    seatmap: e.seatmap?.staticUrl ?? null,
+    attractions: (e?._embedded?.attractions ?? []).map((a) => a.name),
+  };
+}
+
+export function getEventDate(event) {
+  if (event.dateTime) return new Date(event.dateTime);
+  if (event.localDate) return new Date(`${event.localDate}T23:59:59`);
+  return null;
+}
+
+export function isPastEvent(event) {
+  const d = getEventDate(event);
+  return d ? d < new Date() : false;
+}
+
+export function formatEventDate(event) {
+  if (!event.localDate) return 'Date TBA';
+  const d = new Date(`${event.localDate}T${event.localTime ?? '00:00:00'}`);
+  const date = d.toLocaleDateString(undefined, {
+    weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+  });
+  const time = event.localTime
+    ? d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+    : '';
+  return time ? `${date} · ${time}` : date;
+}
+
+export function toTmDate(date) {
+  return date.toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+export function buildEventParams(filters, page) {
+  const params = {
+    size: 12,
+    page,
+    sort: filters.sort || 'date,asc',
+    keyword: filters.keyword,
+    classificationName: filters.category,
+    city: filters.city,
+    countryCode: filters.countryCode,
+    startDateTime: toTmDate(
+      filters.startDate ? new Date(`${filters.startDate}T00:00:00Z`) : new Date()
+    ),
+  };
+
+  if (filters.endDate) {
+    params.endDateTime = toTmDate(new Date(`${filters.endDate}T23:59:59Z`));
+  }
+
+  return params;
+}
